@@ -1,0 +1,32 @@
+# Rust build artifacts
+/target/
+**/*.rs.bk
+
+# Cargo lockfile (Keep Cargo.lock committed if this is a binary/API application,
+# but untrack local temporary cargo files)
+Cargo.lock.3rdparty
+
+# Environment & Secrets
+.env
+.env.*
+!.env.example
+
+# SQLx local offline data / cache (Ignore if NOT using offline mode `sqlx-data.json`)
+# If you use offline compilation mode (`cargo sqlx prepare`), COMMIT `sqlx-data.json`.
+# If you don't use offline mode, you can ignore temporary database dumps:
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+
+# Operating System files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
