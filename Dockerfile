@@ -1,5 +1,5 @@
 # --- Build stage ---
-FROM rust:1.79-slim-bookworm AS builder
+FROM rust:1.85-slim-bookworm AS builder
 
 WORKDIR /app
 
@@ -8,13 +8,16 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# Force SQLx to use offline cached metadata during build
+ENV SQLX_OFFLINE=true
+
 # Cache dependencies
 COPY Cargo.toml Cargo.lock* ./
 RUN mkdir src && echo "fn main() {}" > src/main.rs
 RUN cargo build --release || true
 RUN rm -rf src
 
-# Build actual source
+# Copy source code and SQLx metadata
 COPY . .
 RUN cargo build --release
 
@@ -29,9 +32,10 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-COPY --from=builder /app/target/release/pcfi-backend /app/pcfi-backend
+# Copy correct binary and migrations
+COPY --from=builder /app/target/release/psad-backend /app/psad-backend
 COPY --from=builder /app/migrations /app/migrations
 
 EXPOSE 8080
 
-CMD ["/app/pcfi-backend"]
+CMD ["/app/psad-backend"]
