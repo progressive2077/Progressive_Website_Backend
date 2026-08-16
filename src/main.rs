@@ -32,8 +32,15 @@ async fn main() -> std::io::Result<()> {
     dotenv().ok();
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    let jwt_secret = env::var("JWT_SECRET").expect("JWT_SECRET must be set");
+    // 1. Read dynamic PORT assigned by Render, defaulting to 8080 for local dev
+    let port = env::var("PORT")
+        .unwrap_or_else(|_| "8080".to_string())
+        .parse::<u16>()
+        .expect("PORT must be a valid u16 number");
+
+    // 2. Safely extract environment variables
+    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL environment variable is missing");
+    let jwt_secret = env::var("JWT_SECRET").expect("JWT_SECRET environment variable is missing");
     let allowed_origins: Vec<String> = env::var("ALLOWED_ORIGINS")
         .unwrap_or_else(|_| "http://localhost:3000,http://localhost:3001".to_string())
         .split(',')
@@ -41,18 +48,22 @@ async fn main() -> std::io::Result<()> {
         .filter(|s| !s.is_empty())
         .collect();
 
+    log::info!("Connecting to PostgreSQL database...");
+    
+    // 3. Establish Database Connection Pool
     let pool = PgPoolOptions::new()
         .max_connections(10)
         .connect(&database_url)
         .await
         .expect("Failed to connect to PostgreSQL");
 
+    log::info!("Running database migrations...");
     sqlx::migrate!("./migrations")
         .run(&pool)
         .await
         .expect("Failed to run migrations");
 
-    log::info!("Starting PCFI Backend on 0.0.0.0:8080");
+    log::info!("Starting server on 0.0.0.0:{}", port);
 
     let pool_data = web::Data::new(pool);
     let jwt_secret_data = web::Data::new(jwt_secret);
@@ -138,7 +149,7 @@ async fn main() -> std::io::Result<()> {
                     .route("/board_members/{id}", web::delete().to(board_members::delete)),
             )
     })
-    .bind("0.0.0.0:8080")?
+    .bind(("0.0.0.0", port))?
     .run()
     .await
 }
