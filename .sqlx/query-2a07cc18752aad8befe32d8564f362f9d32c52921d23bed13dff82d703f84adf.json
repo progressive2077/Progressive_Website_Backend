@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT \n            id, \n            file_name as \"file_name!\", \n            file_type as \"file_type!\", \n            file_data as \"file_data!\", \n            CONCAT('/api/media/', id::text) as \"file_url!\",\n            created_at as \"created_at!\"\n        FROM media \n        WHERE id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "file_name!",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "file_type!",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "file_data!",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 4,
+        "name": "file_url!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at!",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      null,
+      true
+    ]
+  },
+  "hash": "2a07cc18752aad8befe32d8564f362f9d32c52921d23bed13dff82d703f84adf"
+}

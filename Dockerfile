@@ -1,5 +1,5 @@
 # --- Build stage ---
-FROM rust:1.85-slim-bookworm AS builder
+FROM rust:latest AS builder
 
 WORKDIR /app
 
@@ -8,11 +8,10 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Force SQLx to use offline cached metadata during build
 ENV SQLX_OFFLINE=true
 
-# Cache dependencies
-COPY Cargo.toml Cargo.lock* ./
+# Copy manifest and lockfile first to leverage layer caching
+COPY Cargo.toml Cargo.lock ./
 RUN mkdir src && echo "fn main() {}" > src/main.rs
 RUN cargo build --release || true
 RUN rm -rf src
@@ -32,7 +31,6 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copy correct binary and migrations
 COPY --from=builder /app/target/release/psad-backend /app/psad-backend
 COPY --from=builder /app/migrations /app/migrations
 
