@@ -32,13 +32,11 @@ async fn main() -> std::io::Result<()> {
     dotenv().ok();
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
-    // 1. Read dynamic PORT assigned by Render, defaulting to 8080 for local dev
     let port = env::var("PORT")
         .unwrap_or_else(|_| "8080".to_string())
         .parse::<u16>()
         .expect("PORT must be a valid u16 number");
 
-    // 2. Safely extract environment variables
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL environment variable is missing");
     let jwt_secret = env::var("JWT_SECRET").expect("JWT_SECRET environment variable is missing");
     let allowed_origins: Vec<String> = env::var("ALLOWED_ORIGINS")
@@ -49,8 +47,6 @@ async fn main() -> std::io::Result<()> {
         .collect();
 
     log::info!("Connecting to PostgreSQL database...");
-    
-    // 3. Establish Database Connection Pool
     let pool = PgPoolOptions::new()
         .max_connections(10)
         .connect(&database_url)
@@ -94,6 +90,9 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::JsonConfig::default().limit(10 * 1024 * 1024))
             .wrap(cors)
             .wrap(Logger::default())
+            // Root endpoints for platform health checks
+            .route("/", web::get().to(|| async { HttpResponse::Ok().body("Server is operational") }))
+            .route("/", web::head().to(|| async { HttpResponse::Ok().finish() }))
             .route("/health", web::get().to(health_check))
             .route("/api/media/{id}", web::get().to(upload::get_media_by_id))
             .service(
