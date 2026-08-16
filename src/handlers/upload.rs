@@ -8,13 +8,13 @@ use crate::models::Media;
 
 pub async fn upload_image(
     pool: web::Data<PgPool>,
+    public_api_url: web::Data<String>,
     mut payload: Multipart,
 ) -> impl Responder {
     let mut file_data = Vec::new();
     let mut file_name = String::from("upload.bin");
     let mut file_type = String::from("application/octet-stream");
 
-    // Process multipart streams using try_next() from futures::TryStreamExt
     while let Ok(Some(mut field)) = payload.try_next().await {
         let content_disposition = field.content_disposition();
 
@@ -38,6 +38,7 @@ pub async fn upload_image(
     }
 
     let media_id = Uuid::new_v4();
+    let full_image_url = format!("{}/api/media/{}", public_api_url.get_ref(), media_id);
 
     let result = sqlx::query!(
         r#"
@@ -55,7 +56,7 @@ pub async fn upload_image(
     match result {
         Ok(_) => HttpResponse::Ok().json(serde_json::json!({
             "id": media_id,
-            "url": format!("/api/media/{}", media_id)
+            "url": full_image_url
         })),
         Err(e) => {
             log::error!("Database insert error: {:?}", e);
@@ -70,7 +71,6 @@ pub async fn get_media_by_id(
 ) -> impl Responder {
     let media_id = id.into_inner();
 
-    // Dynamically construct file_url in SQL query to satisfy Media struct fields
     let record = sqlx::query_as!(
         Media,
         r#"
@@ -92,6 +92,7 @@ pub async fn get_media_by_id(
     match record {
         Ok(Some(media)) => HttpResponse::Ok()
             .content_type(media.file_type)
+            .append_header(("Cache-Control", "public, max-age=31536000, immutable"))
             .body(media.file_data),
         Ok(None) => HttpResponse::NotFound().json("Media not found"),
         Err(e) => {
