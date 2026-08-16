@@ -1,14 +1,15 @@
+mod db;
+mod handlers;
+mod middleware;
+mod models;
+
 use actix_cors::Cors;
 use actix_governor::{Governor, GovernorConfigBuilder};
 use actix_web::{middleware::Logger, web, App, HttpResponse, HttpServer};
 use dotenv::dotenv;
 use sqlx::postgres::PgPoolOptions;
 use std::env;
-
-mod db;
-mod handlers;
-mod middleware;
-mod models;
+use std::time::Duration;
 
 use handlers::{
     auth, board_members, content, employees, gallery, hero, products, upload,
@@ -39,8 +40,13 @@ async fn main() -> std::io::Result<()> {
 
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL environment variable is missing");
     let jwt_secret = env::var("JWT_SECRET").expect("JWT_SECRET environment variable is missing");
+    
+    // Canonical public URL used to build absolute media links for the frontend
+    let public_api_url = env::var("PUBLIC_API_URL")
+        .unwrap_or_else(|_| "https://backend.progressivedairyagro.com".to_string());
+
     let allowed_origins: Vec<String> = env::var("ALLOWED_ORIGINS")
-        .unwrap_or_else(|_| "http://localhost:3000,http://localhost:3001".to_string())
+        .unwrap_or_else(|_| "http://localhost:3000,http://localhost:3001,https://progressivedairyagro.com".to_string())
         .split(',')
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
@@ -49,6 +55,7 @@ async fn main() -> std::io::Result<()> {
     log::info!("Connecting to PostgreSQL database...");
     let pool = PgPoolOptions::new()
         .max_connections(10)
+        .acquire_timeout(Duration::from_secs(5))
         .connect(&database_url)
         .await
         .expect("Failed to connect to PostgreSQL");
@@ -63,6 +70,7 @@ async fn main() -> std::io::Result<()> {
 
     let pool_data = web::Data::new(pool);
     let jwt_secret_data = web::Data::new(jwt_secret);
+    let public_api_url_data = web::Data::new(public_api_url);
 
     let login_governor_conf = GovernorConfigBuilder::default()
         .seconds_per_request(12)
@@ -76,6 +84,7 @@ async fn main() -> std::io::Result<()> {
             .allowed_headers(vec![
                 actix_web::http::header::AUTHORIZATION,
                 actix_web::http::header::CONTENT_TYPE,
+                actix_web::http::header::ACCEPT,
             ])
             .supports_credentials()
             .max_age(3600);
@@ -87,13 +96,15 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .app_data(pool_data.clone())
             .app_data(jwt_secret_data.clone())
+            .app_data(public_api_url_data.clone())
             .app_data(web::JsonConfig::default().limit(10 * 1024 * 1024))
             .wrap(cors)
             .wrap(Logger::default())
-            // Root endpoints for platform health checks
+            // Root endpoints
             .route("/", web::get().to(|| async { HttpResponse::Ok().body("Server is operational") }))
             .route("/", web::head().to(|| async { HttpResponse::Ok().finish() }))
             .route("/health", web::get().to(health_check))
+            // Media serving endpoint (Public)
             .route("/api/media/{id}", web::get().to(upload::get_media_by_id))
             .service(
                 web::scope("/api/auth")
